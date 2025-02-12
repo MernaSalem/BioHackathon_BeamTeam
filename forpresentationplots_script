@@ -1,0 +1,267 @@
+#plots shown in presentation
+#install packages
+install.packages("enrichR")
+
+
+#load libraries
+library(readr)
+library(RColorBrewer) #for colors
+library(limma)
+library(mixOmics) #for multiomics PLSDA analysis
+library(zoo) #for na.aggregate
+library(dplyr) # tidying up dfs
+library(ggplot2)
+library(enrichR) # for enrichment analysis (needs only vector of genes not res obj with LFC, p)
+
+#############################3
+
+# making sure meth matrix and meta data ordering match
+#identical(samplesheet$ID, colnames(num.mut.imp.df)) #true
+#identical(colnames(DMPs_matrix),samplesheet$ID) #true #degs 9k only
+#MDS plot (exploratory analysis of the data)
+
+samplesheet$combo <- paste0(samplesheet$ptno,"_",toupper(str_sub(samplesheet$group, 1,1)))
+
+# exploratory analysis plot for methylation
+pal <- brewer.pal(8,"Dark2")
+par(mfrow=c(1,2)) #fig of one row; two cols
+plotMDS(num.mut.imp.df,top=1000,gene.selection = "common", col=pal[factor(samplesheet$group)],label= samplesheet$combo, main="methylation top 20k most variable")
+legend("top", legend=levels(factor(samplesheet$group)), text.col=pal,
+       bg="white", cex=0.7)
+plotMDS(DMPs_matrix,top=1000,gene.selection = "common", col=pal[factor(samplesheet$group)],label= samplesheet$combo, main="methylation 9k sig. DMPs") #note 3 outliers?
+legend("top", legend=levels(factor(samplesheet$group)), text.col=pal,
+       bg="white", cex=0.7)
+
+#for expression exploratory analysis
+pdf("exploratoryexp.pdf")
+par(mfrow=c(1,2)) #fig of one row; two cols
+plotMDS(normexpcounts,top=1000,gene.selection = "common", col=pal[factor(samplesheet_exp$group)],label= samplesheet$combo, main="whole expression (39k)")
+legend("top", legend=levels(factor(samplesheet_exp$group)), text.col=pal,
+       bg="white", cex=0.7)
+#normexpdegs= normexpcounts[rownames(DEGS),]
+plotMDS(normexpdegs,top=1000,gene.selection = "common", col=pal[factor(samplesheet_exp$group)],label= samplesheet$combo, main="expression 82 sig. DEGs") #note 3 outliers?
+legend("top", legend=levels(factor(samplesheet$group)), text.col=pal,
+       bg="white", cex=0.7)
+
+#Enrichment analysis using enrichR
+listEnrichrSites()
+dbs <- listEnrichrDbs()
+#check available databases 
+dbs$libraryName
+write.csv(dbs, "enrichrdbs.csv")
+#the databases I selected for EA
+dbs1 <- c("GO_Biological_Process_2023", "GO_Cellular_Component_2023", "GO_Molecular_Function_2023", "Descartes_Cell_Types_and_Tissue_2021", "CellMarker_Augmented_2021", "Azimuth_Cell_Types_2021", "CellMarker_2024", "KEGG_2021_Human", "Reactome_Pathways_2024")
+
+#for gene exp GSEA
+enriched1 <- enrichr(degsannsymbol, dbs1) #input vector of sig.genes (genes to do GSEA for) and vector of the databasesof interest
+
+#plots 
+png(filename="exp_GO_BP.png")
+plotEnrich(enriched1[[1]], showTerms = 20, numChar = 40, y = "Count", orderBy = "P.value", xlab = NULL,ylab = NULL,title = "GO_BP")
+dev.off()
+png(filename="exp_Cellmarker.png")
+plotEnrich(enriched1[[7]], showTerms = 20, numChar = 40, y = "Count", orderBy = "Adjusted.P.value", title= "CellMarker_24")
+dev.off()
+png(filename="exp_KEGG.png")
+plotEnrich(enriched1[[8]], showTerms = 20, numChar = 40, y = "Count", orderBy = "Adjusted.P.value", title= "KEGG_21")
+dev.off()
+png(filename="exp_Reactome.png")
+plotEnrich(enriched1[[9]], showTerms = 20, numChar = 40, y = "Count", orderBy = "Adjusted.P.value", title= "Reactome_24")
+dev.off()
+
+#save.image(file='SOLEimage.RData')
+#load('SOLEimage.RData')
+###
+
+#GSEA for probes
+dmpnames= scan("dmpsnames.txt",what= "character") #vector of sig. probes
+enrichedm <- enrichr(dmpnames, dbs1)
+
+#plots
+png(filename="meth_GO_BP.png")
+plotEnrich(enrichedm[[1]], showTerms = 20, numChar = 40, y = "Count", orderBy = "Adjusted.P.value", xlab = NULL,ylab = NULL,title = "meth GO_BP")
+dev.off()
+png(filename="meth_cellmarker.png")
+plotEnrich(enrichedm[[7]], showTerms = 20, numChar = 40, y = "Count", orderBy = "Adjusted.P.value", title= "meth CellMarker_24")
+dev.off()
+png(filename="meth_KEGG.png")
+plotEnrich(enrichedm[[8]], showTerms = 20, numChar = 40, y = "Count", orderBy = "Adjusted.P.value", title= "meth KEGG_21")
+dev.off()
+png(filename="meth_Reactome.png")
+plotEnrich(enrichedm[[9]], showTerms = 20, numChar = 40, y = "Count", orderBy = "Adjusted.P.value", title= "meth Reactome_24")
+dev.off()
+
+
+
+firstparttopall=sapply(strsplit(topall$UCSC_RefGene_Name, ";"), function(x) x)
+#firstgene=sapply(firstpart,"[[",1) #to get first gene from list of gene;gene;gene;gene, gene;gene, gene, etc...
+firstgenetopall=sapply(firstparttopall,"[[",1)
+length(unique(firstgenetopall)) 
+
+#getting genes from multiple annotated genes separated by ;
+fillter= topall %>% filter (!is.na(UCSC_RefGene_Name) )  %>% filter(UCSC_RefGene_Name != "") #annotated probe gene names which are not na or blank
+firstparttopall=sapply(strsplit(fillter$UCSC_RefGene_Name, ";"), function(x) x)
+#firstgene=sapply(firstpart,"[[",1) #to get first gene from list of gene;gene;gene;gene, gene;gene, gene, etc...
+firstgenetopall=sapply(firstparttopall,"[[",1)
+dffre=as.data.frame(table(firstgenetopall))
+dffreord=dffre[order(dffre$Freq, decreasing =T),]
+
+top5fillter= fillter[1:5,]
+setDT(top5fillter)[, uniqCnt := sapply(strsplit(UCSC_RefGene_Name, ";"), uniqueN)][]
+#get biggest uniqueN value 
+top5fillter[order(top5fillter$uniqueN, decreasing = TRUE), ] 
+#I AM HERE I AM HERE 
+
+trial=setDT(top5fillter)[, uniqCnt := sapply(strsplit(UCSC_RefGene_Name, ";"), unique)][]
+trial$uniqCnt
+
+library(splitstackshape)
+install.packages("splitstackshape")
+#cSplit(df, "FOO", "|")
+cSplit(trial, "uniqCnt", ",")
+grepl("uniqCnt", colnames(trial))
+
+setDT(top5fillter)[, uniqCnt := sapply(strsplit(UCSC_RefGene_Name, ";"), summarise(count = n_distinct()))][]
+
+top5fillter$UCSC_RefGene_Name
+library(data.table)
+#BARPLOT of genes with highest no. of cpgs
+library(ggplot2)
+# Basic barplot
+
+subb=dffreord[1:10,] 
+subb$mfr <- factor(subb$firstgenetopall, levels= subb$firstgenetopall) #to sort order on ggplot need to factor and specify evels
+p<-ggplot(data=subb, aes(x=mfr, y=Freq)) +
+  geom_bar(stat="identity") + labs(
+    x = 'Genes',
+    y = '# of DMPs',
+    title = 'Annotation of DMPs (genes with highest no. of sig. DMPs)')
+p
+#basic
+barplot(dffreord$Freq[1:5], xlab = "X-axis", ylab = "Y-axis", main ="Bar-Chart")
+
+
+exp.sds[order(exp.sds$sds, decreasing = T),]
+table(top)
+length(unique(firstgenetopall)) 
+
+###################
+DMPs_matix
+namesofprobestokeep
+DMPs_matrix_26= DMPs_matrix[namesofprobestokeep,]
+tDMPs26= t(DMPs_matrix_26)
+tDMPs26m= as.matrix(tDMPs26)
+tDMPs26df= as.data.frame(tDMPs26)
+tDMPs26df$group= samplesheet$group
+
+rlang::parse_expr("group ~ prs")
+#d=paste0("RTCGA.clinical::",rlang::parse_expr(paste0(cancer, ".clinical")))
+#e=rlang::parse_expr(d)
+
+rlang::parse_expr("group ~ colnames(tDMPs26df)[1]")
+g=
+  tDMPs26df$group <- as.factor(tDMPs26df$group)
+mylogit <- glm(group ~ cg23218272  , data =tDMPs26df, family = "binomial")
+summary(mylogit) #sig
+g=rlang::parse(colnames(tDMPs26df)[1])
+f=paste0("group ~ ",rlang::parse_expr(colnames(tDMPs26df)[1]))
+rlang::parse_expr(f)
+mylogit <- glm(f , data =tDMPs26df, family = "binomial")
+summary(mylogit) #sig
+
+g <- tDMPs26df[1:(length(tDMPs26df)-1)]
+drugs=colnames(g)
+flatt= str_flatten(drugs, collapse = ", ")
+forma= gsub(",", " +", flatt)
+f=paste0("group ~ ",forma)
+mylogitall26 <- glm(f  , data =tDMPs26df, family = "binomial")
+summary(mylogitall26) #sig
+
+
+identical(colnames(g), rownames(probestokeep))
+samplesheet_exp$combo <- paste0(samplesheet_exp$ptno,"_",toupper(str_sub(samplesheet_exp$group, 1,1)))
+rownames(new) <- samplesheet_exp$combo
+
+samplesheet_exp$ID  
+colnames(samplesheet_exp)
+samplesheet$combo <- paste0(samplesheet$ptno,"_",toupper(str_sub(samplesheet$group, 1,1)))
+rownames(exp_26_t) # correct is g
+colnames(g) <- probestokeep$geneprobe
+rownames(g) <- samplesheet$combo
+samplesheet_exp$group
+
+#so we have g and new (labelled correctlt)
+cbound= cbind(g,new)
+cbound=as.matrix(cbound)
+cor_matrix <- cor(cbound)
+pairs(cbound)#, pch = 21, bg = c("red"))
+
+options(repr.plot.width=10,repr.plot.height=10)
+
+library(corrplot)
+library(RColorBrewer)
+M <-cor(cbound[,1:20])
+corrplot(M, type="upper", order="hclust" )#,         col=brewer.pal(n=8, name="RdYlBu"))
+sum(is.na(g))
+options(repr.plot.width=10,repr.plot.height=10)
+M <-cor(GoodData)
+corrplot(M, type="upper", order="hclust" )#,         col=brewer.pal(n=8, name="RdYlBu"))
+
+library(corrplot)
+
+library("Hmisc")
+res2 <- rcorr(as.matrix(GoodData))
+# convert the correlation matrix into table
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+  )
+}
+
+head(res2$r)
+head(res2$P)
+
+corrplot(res2$r, type="upper", order="hclust",
+         p.mat = res2$P, sig.level = 0.01, insig = "blank")
+
+
+options(repr.plot.width=10,repr.plot.height=10)
+library(corrplot)
+test <- matrix(data = rnorm(400), nrow=20, ncol=20)
+png(height=1200, width=1500, pointsize=15, file="overlap.png")
+corrplot(res2$r, type="upper", order="hclust",
+         p.mat = res2$P, sig.level = 0.01, insig = "blank")
+
+corrplot(cor(test), method = "color", addCoef.col="grey", order = "AOE")
+sum(is.na(new))
+View(exp_26_t[-1])
+new =exp_26_t[1:(length(exp_26_t)-1)]
+rownames(new)
+samplesheet_exp$combo=
+  #################
+#corr among 26
+forcor=cbind(new,g)
+cbound[,43]
+colnames(cbound)
+cbound=cbound[]
+GoodData <- as.data.frame(cbound[,-43])
+
+cbound.imp= impute.knn(as.matrix(cbound),k=10)$data
+num.mat.imputed=impute.knn(as.matrix(flt),k=10)$data
+num.mat.df= as.data.frame(num.mat.imputed)
+#DMPs
+
+library(stringr)
+drugs= c("a", "b", "c", "d", "e")
+flatt=str_flatten(drugs, collapse = ", ")
+gsub(",", "+", flatt)
+
+
+#identical(rownames(tDMPs26df),samplesheet$ID)  
+identical(colnames(num.mat.imputed),samplesheet$ID)
+samplesheet$group <- as.factor(samplesheet$group)
+
