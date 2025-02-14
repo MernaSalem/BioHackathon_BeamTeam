@@ -97,13 +97,13 @@ num_clusters <- 3
 clusters <- spectralClustering(W_fused, num_clusters)
 
 # ---------------------- #
-# Step 4: Visualizations (Improved for Clear Cluster Identification)
+# Step 4: Visualizations 
 # ---------------------- #
 
-# ✅ 1️⃣ Hierarchical Clustering (with patient labels)
+# Hierarchical Clustering (with patient labels)
 plot(hclust(as.dist(1 - W_fused)), labels = rownames(W_fused), main = "Hierarchical Clustering of SNF")
 
-# ✅ 2️⃣ PCA Plot with Patient Labels
+# PCA Plot with Patient Labels
 pca_result <- prcomp(W_fused, scale = TRUE)
 pca_df <- data.frame(PC1 = pca_result$x[, 1], PC2 = pca_result$x[, 2], Cluster = as.factor(clusters), Patient = rownames(W_fused))
 
@@ -113,7 +113,7 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster, label = Patient)) +
   labs(title = "PCA of SNF Clustering", x = "PC1", y = "PC2") +
   theme_minimal()
 
-# ✅ 3️⃣ Heatmap of Fused Similarity Matrix with Cluster Labels
+# Heatmap of Fused Similarity Matrix with Cluster Labels
 patient_clusters <- data.frame(Cluster = as.factor(clusters))
 rownames(patient_clusters) <- rownames(W_fused)
 
@@ -124,7 +124,7 @@ pheatmap(W_fused,
          annotation_col = patient_clusters, 
          main = "Fused Similarity Matrix with Clusters")
 
-# ✅ 4️⃣ t-SNE Plot with Patient Labels
+# t-SNE Plot with Patient Labels
 perplexity_value <- min(10, floor((num_samples - 1) / 3))  
 if (perplexity_value > 1) {
   tsne_result <- Rtsne(W_fused, perplexity = perplexity_value)
