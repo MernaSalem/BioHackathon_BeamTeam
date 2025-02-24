@@ -44,7 +44,7 @@ MOFAobject <- create_mofa(data_list)
 
 
 # Set Model Options
-# ========================
+
 model_opts <- get_default_model_options(MOFAobject)
 model_opts$num_factors <- 7
 if ("sparsity" %in% names(model_opts)) model_opts$sparsity <- TRUE
@@ -65,9 +65,8 @@ plot_variance_explained(MOFAobject_run, plot_total = FALSE)
 plot_data_overview(MOFAobject_run)
 plot_factor_cor(MOFAobject_run)
 
-# ========================
-# 🔗 Integrate Metadata
-# ========================
+# Integrate Metadata
+
 metadata$group <- "group1"
 MOFAobject_run@samples_metadata <- metadata
 
